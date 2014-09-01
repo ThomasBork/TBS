@@ -71,14 +71,30 @@ var _game = {
         return selectedUnit;
     },
     getDistanceBetweenUnits: function (unit1, unit2) {
-        return Math.abs(unit1.positionX - unit2.positionX) + Math.abs(unit1.positionY - unit2.positionY);
+        return _game.getDistanceBetweenUnitAndPoint(unit1, unit2.positionX, unit2.positionY);
+    },
+    getDistanceBetweenUnitAndPoint: function (unit, x, y) {
+        return Math.abs(unit.positionX - x) + Math.abs(unit.positionY - y);
     },
     moveUnit: function (unit, x, y) {
-        unit.currentEnergy -= Math.abs(unit.positionX - x) + Math.abs(unit.positionY - y);
-        unit.positionX = x;
-        unit.positionY = y;
+        var distance = _game.getDistanceBetweenUnitAndPoint(unit, x, y);
+        unit.currentEnergy -= distance;
+
+        // Move each step individually and update vision at each position.
+        for (var i = 0; i < distance; i++) {
+            if (unit.positionX > x) {
+                unit.positionX--;
+            } else if (unit.positionX < x) {
+                unit.positionX++;
+            } else if (unit.positionY > y) {
+                unit.positionY--;
+            } else if (unit.positionY < y) {
+                unit.positionY++;
+            }
+            _game.updateVision();
+        }
+
         _ui.updatePositionForUnit(unit);
-        _game.updateVision();
     },
     orderUnitToAttack: function (attackingUnit, attackedUnit) {
         var totalDamage = _unit.calculateDamage(attackingUnit);
@@ -103,7 +119,7 @@ var _game = {
             var player = currentGame.players[playerIndex];
             for (var x = 0; x < LEVEL_WIDTH; x++) {
                 for (var y = 0; y < LEVEL_HEIGHT; y++) {
-                    if (player.vision[x][y] = VISION.VISIBLE) {
+                    if (player.vision[x][y] == VISION.VISIBLE) {
                         player.vision[x][y] = VISION.DISCOVERED;
                     };
                 }
