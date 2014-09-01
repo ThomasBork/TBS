@@ -1,0 +1,73 @@
+﻿#container
+{
+    overflow: auto;
+    height: 100vh;
+    width: 100vw;
+}
+#side-bar
+{
+    float: left;
+    height: 100%;
+    width: 15%;
+    background-color: #0094ff;
+}
+#game-area
+{
+    float: left;
+    height: 100%;
+    width: 85%;
+    background-color: #44CCff;
+    position: relative;
+    overflow: hidden;
+}
+.unit
+{
+    position: absolute;
+    height: 30px;
+    width: 30px;
+}
+.green
+{
+    background-color: green;
+}
+.white
+{
+    background-color: white;
+}
+.unit.selected
+{
+    opacity: 0.5;
+}
+.unit.can-be-attacked
+{
+    background-color: #ff6a00;
+}
+.tile
+{
+    position: absolute;
+    height: 30px;
+    width: 30px;
+    background-color: #44CCff;
+}
+.tile.can-be-moved-to
+{
+    background-color: #33AADD;
+}
+.vision-blocker
+{
+    background-color: #000000;
+    height: 100%;
+    width: 100%;
+}
+.tile.undiscovered .vision-blocker
+{
+    opacity: 1;
+}
+.tile.discovered .vision-blocker
+{
+    opacity: 0.3;
+}
+.tile.visible .vision-blocker
+{
+    opacity: 0;
+}
