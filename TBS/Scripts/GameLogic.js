@@ -33,35 +33,88 @@ var initEvents = function () {
 };
 
 var initGame = function () {
-    _game.setUpLevel(currentGame);
+    _game.setUpLevel();
     var player1Name = $('#player1-name').val() != "" ? $('#player1-name').val() : "Player1";
     var player2Name = $('#player2-name').val() != "" ? $('#player2-name').val() : "Player2";
     var player1 = _player.new(player1Name, 'green');
     var player2 = _player.new(player2Name, 'white');
-    var commander = _unitType.new("Commander", 20, 2, 100, 4, 7, 1, 4);
-    var unit1 = _unit.new(player1, commander, 18, 10);
-    var unit2 = _unit.new(player2, commander, 10, 10);
-    player1.units = [unit1];
-    player2.units = [unit2];
-    var newGame = {
-        players: [player1, player2],
-        host: player1,
-        units: [unit1, unit2]
-    };
+    currentGame = _game.new(player1, player2);
+
+    var commander = _unitType.new(
+        {
+            name: "Commander",
+            description: "Commander. Average hit points. Average damage. Average attack speed.",
+            damage: 20,
+            attackSpeed: 2,
+            attackRange: 1,
+            hitPoints: 100,
+            energy: 4,
+            vision: 6,
+            attacks: 1,
+            energyPerAttack: 4
+        }
+    );
+
+    var footman = _unitType.new(
+        {
+            name: "Footman",
+            description: "Footman. High hit points. Average damage. Slow attack speed.",
+            damage: 20,
+            attackSpeed: 1.2,
+            attackRange: 1,
+            hitPoints: 150,
+            energy: 3,
+            vision: 5,
+            attacks: 1,
+            energyPerAttack: 4
+        }
+    );
+
+    var ranger = _unitType.new(
+        {
+            name: "Ranger",
+            description: "Ranger. Ranged. Low hit points. High damage. Slow attack speed.",
+            damage: 35,
+            attackSpeed: 1,
+            attackRange: 3,
+            hitPoints: 60,
+            energy: 3,
+            vision: 7,
+            attacks: 1,
+            energyPerAttack: 3
+        }
+    );
+
+    _unit.new(player1, commander, 3, 3);
+    _unit.new(player1, footman, 3, 1);
+    _unit.new(player1, footman, 1, 3);
+    _unit.new(player1, ranger, 1, 1);
+
+    _unit.new(player2, commander, 25, 27);
+    _unit.new(player2, footman, 20, 23);
+    _unit.new(player2, footman, 25, 20);
+    _unit.new(player2, ranger, 24, 24);
 
     $('#in-game-control-panel').show();
-    currentGame = newGame;
     _game.start(currentGame);
 };
 
 var _game = {
+    new: function (player1, player2) {
+        var newGame = {
+            players: [player1, player2],
+            host: player1,
+            units: []
+        };
+        return newGame;
+    },
     start: function (game) {
         game.currentTurn = 0;
         game.currentPlayer = game.players[Math.floor((Math.random() * 2))];
         _ui.updateCurrentPlayerText();
         _game.updateVision();
     },
-    setUpLevel: function (game) {
+    setUpLevel: function () {
         jqGameArea.empty();
         _ui.createTiles();
     },
@@ -181,7 +234,8 @@ var _player = {
         return {
             name: name,
             color: color,
-            vision: vision
+            vision: vision,
+            units: []
         }
     },
     getOtherPlayer: function () {
@@ -202,16 +256,18 @@ var _player = {
 };
 
 var _unitType = {
-    new: function (name, damage, attackSpeed, hitPoints, energy, vision, attacks, energyPerAttack) {
+    new: function (options) {
         return {
-            name: name,
-            damage: damage,
-            attackSpeed: attackSpeed,
-            hitPoints: hitPoints,
-            energy: energy,
-            vision: vision,
-            attacks: attacks,
-            energyPerAttack: energyPerAttack
+            name: options.name,
+            description: options.description,
+            damage: options.damage,
+            attackSpeed: options.attackSpeed,
+            attackRange: options.attackRange,
+            hitPoints: options.hitPoints,
+            energy: options.energy,
+            vision: options.vision,
+            attacks: options.attacks,
+            energyPerAttack: options.energyPerAttack
         };
     }
 };
@@ -221,6 +277,7 @@ var _unit = {
         var jqUnit = $('<div class="unit">');
         jqUnit.attr('unit-id', nextUnitID);
         jqUnit.addClass(player.color);
+        jqUnit.attr('title', unitType.description);
 
         jqUnit.click(function () {
             var selectedUnit = _ui.getUnitFromJqElement($(this));
@@ -238,11 +295,12 @@ var _unit = {
         var hitPointBar = _progressBar.newHPBar(
             {
                 height: '5px',
-                maxValue: unitType.hitPoints
+                maxValue: unitType.hitPoints,
+                value: unitType.hitPoints
             }
         );
 
-        var returnUnit = {
+        var newUnit = {
             jqElement: jqUnit,
             hitPointBar: hitPointBar,
             id: nextUnitID,
@@ -252,17 +310,21 @@ var _unit = {
             positionY: positionY,
             currentHitPoints: unitType.hitPoints,
             currentEnergy: unitType.energy,
-            currentAttacks: unitType.attacks
+            currentAttacks: unitType.attacks,
+            alive: true
         };
 
-        _ui.updatePositionForUnit(returnUnit);
+        player.units.push(newUnit);
+        currentGame.units.push(newUnit);
+
+        _ui.updatePositionForUnit(newUnit);
         jqGameArea.append(jqUnit);
 
         var jqBar = hitPointBar.jqElement;
-        returnUnit.jqElement.append(jqBar);
+        newUnit.jqElement.append(jqBar);
 
         nextUnitID++;
-        return returnUnit;
+        return newUnit;
     },
     canAttack: function (unit) {
         return (unit.currentAttacks > 0 || unit.currentEnergy >= unit.unitType.energyPerAttack);
@@ -426,7 +488,7 @@ var _ui = {
             for (var unitIndex in _player.getOtherPlayer().units) {
                 var playerUnit = _player.getOtherPlayer().units[unitIndex];
                 if (
-                    _game.getDistanceBetweenUnits(unit, playerUnit) == 1 &&
+                    _game.getDistanceBetweenUnits(unit, playerUnit) <= unit.unitType.attackRange &&
                     _unit.canAttack(unit)
                 ) {
                     playerUnit.jqElement.addClass('can-be-attacked');
