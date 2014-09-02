@@ -14,8 +14,14 @@
     <script src="~/Scripts/GameLogic.js"></script>
     <div id="container">
         <div id="side-bar">
-            <div id="lbl-current-turn"></div>
-            <input type="button" id="btn-end-turn" value="End turn"/>
+            <input type="text" id="player1-name" placeholder="Player1" />
+            <input type="text" id="player2-name" placeholder="Player2" />
+            <input type="button" id="btn-start-game" value="Start game"/>
+            <div id="in-game-control-panel" style="display:none;">
+                <hr />
+                <div id="lbl-current-turn"></div>
+                <input type="button" id="btn-end-turn" value="End turn"/>
+            </div>
         </div>
         <div id="game-area"></div>
     </div>

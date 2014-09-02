@@ -15,7 +15,6 @@ var tiles = [];
 $(document).ready(function () {
     initUINumbers();
     initEvents();
-    initGame();
 });
 
 var initUINumbers = function () {
@@ -25,6 +24,9 @@ var initUINumbers = function () {
 };
 
 var initEvents = function () {
+    $('#btn-start-game').click(function () {
+        initGame();
+    });
     $('#btn-end-turn').click(function () {
         _game.endTurn();
     });
@@ -32,19 +34,22 @@ var initEvents = function () {
 
 var initGame = function () {
     _game.setUpLevel(currentGame);
-    var host = _player.new("Thomas", 'green');
-    var opponent = _player.new("Andreas", 'white');
+    var player1Name = $('#player1-name').val() != "" ? $('#player1-name').val() : "Player1";
+    var player2Name = $('#player2-name').val() != "" ? $('#player2-name').val() : "Player2";
+    var player1 = _player.new(player1Name, 'green');
+    var player2 = _player.new(player2Name, 'white');
     var commander = _unitType.new("Commander", 20, 2, 100, 4, 7, 1, 4);
-    var unit1 = _unit.new(host, commander, 18, 10);
-    var unit2 = _unit.new(opponent, commander, 10, 10);
-    host.units = [unit1];
-    opponent.units = [unit2];
+    var unit1 = _unit.new(player1, commander, 18, 10);
+    var unit2 = _unit.new(player2, commander, 10, 10);
+    player1.units = [unit1];
+    player2.units = [unit2];
     var newGame = {
-        players: [host, opponent],
-        host: host,
+        players: [player1, player2],
+        host: player1,
         units: [unit1, unit2]
     };
 
+    $('#in-game-control-panel').show();
     currentGame = newGame;
     _game.start(currentGame);
 };
@@ -116,6 +121,7 @@ var _game = {
     },
     updateVision: function () {
         for (var playerIndex in currentGame.players) {
+            // Set all visible tiles to discovered.
             var player = currentGame.players[playerIndex];
             for (var x = 0; x < LEVEL_WIDTH; x++) {
                 for (var y = 0; y < LEVEL_HEIGHT; y++) {
@@ -124,6 +130,8 @@ var _game = {
                     };
                 }
             }
+
+            // Show vision for every unit
             for (var unitIndex in player.units) {
                 var unit = player.units[unitIndex];
                 _unit.giveVision(unit);
