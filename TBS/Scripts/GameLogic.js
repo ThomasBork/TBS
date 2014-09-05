@@ -8,8 +8,11 @@ var TILE_PIXEL_WIDTH = 30;
 var TILE_PIXEL_HEIGHT = 30;
 
 var currentGame;
-var nextUnitID = 0;
+var gameOptions = {
+    goldIncome: 10
+};
 
+var nextUnitID = 0;
 var tiles = [];
 
 $(document).ready(function () {
@@ -112,6 +115,7 @@ var _game = {
         game.currentTurn = 0;
         game.currentPlayer = game.players[Math.floor((Math.random() * 2))];
         _ui.updateCurrentPlayerText();
+        _ui.updateGoldText();
         _game.updateVision();
     },
     setUpLevel: function () {
@@ -289,8 +293,10 @@ var _game = {
         currentGame.currentTurn++;
         _player.updateCurrentPlayer();
         _player.readyUnitsForPlayer(currentGame.currentPlayer);
+        _player.resolveIncomeForPlayer(currentGame.currentPlayer);
         _ui.deselectUnits();
         _ui.updateCurrentPlayerText();
+        _ui.updateGoldText();
         _game.updateVision();
     },
     updateVision: function () {
@@ -356,7 +362,8 @@ var _player = {
             name: name,
             color: color,
             vision: vision,
-            units: []
+            units: [],
+            gold: 0
         }
     },
     getOtherPlayer: function () {
@@ -372,6 +379,12 @@ var _player = {
             var unit = player.units[unitIndex];
             _unit.replenishEnergyForUnit(unit);
             _unit.replenishAttacksForUnit(unit);
+        }
+    },
+    resolveIncomeForPlayer: function (player) {
+        // It not the first turn of a player add income.
+        if (currentGame.currentTurn >= currentGame.players.length) {
+            player.gold += gameOptions.goldIncome;
         }
     }
 };
@@ -389,6 +402,15 @@ var _unitType = {
             vision: options.vision,
             attacks: options.attacks,
             energyPerAttack: options.energyPerAttack
+        };
+    }
+};
+
+var _object = {
+    new: function (positionX, positionY) {
+        return {
+            positionX: positionX,
+            positionY: positionY
         };
     }
 };
@@ -427,13 +449,13 @@ var _unit = {
             id: nextUnitID,
             player: player,
             unitType: unitType,
-            positionX: positionX,
-            positionY: positionY,
             currentHitPoints: unitType.hitPoints,
             currentEnergy: unitType.energy,
             currentAttacks: unitType.attacks,
             alive: true
         };
+        // Add object attributes to the newUnit object.
+        $.extend(newUnit, _object.new(positionX, positionY));
 
         player.units.push(newUnit);
         currentGame.units.push(newUnit);
@@ -479,6 +501,9 @@ var _ui = {
     updateCurrentPlayerText: function () {
         $('#lbl-current-turn').html('Current player: ' + currentGame.currentPlayer.name);
     },
+    updateGoldText: function () {
+        $('#lbl-gold').html('Gold: ' + currentGame.currentPlayer.gold);
+    },
     updatePositionForUnit: function (unit) {
         unit.jqElement.css('left', _ui.ingameXToPixels(unit.positionX) + 'px');
         unit.jqElement.css('top', _ui.ingameYToPixels(unit.positionY) + 'px');
@@ -487,6 +512,11 @@ var _ui = {
         $('.unit.selected').removeClass('selected');
         $('.tile.can-be-moved-to').removeClass('can-be-moved-to');
         $('.unit.can-be-attacked').removeClass('can-be-attacked');
+        _ui.hideCurrentPath();
+    },
+    hideCurrentPath: function () {
+        $('.tile.current-path').removeClass('current-path');
+        $('.tile.destination').removeClass('destination');
     },
     selectUnit: function (unit) {
         _ui.deselectUnits();
@@ -506,7 +536,18 @@ var _ui = {
             if (jqTile.hasClass('can-be-moved-to')) {
                 var x = jqTile.attr('x');
                 var y = jqTile.attr('y');
-                _game.moveUnit(selectedUnit, x, y);
+                if (jqTile.hasClass('destination')) {
+                    _game.moveUnit(selectedUnit, x, y);
+                    _ui.hideCurrentPath();
+                } else {
+                    _ui.hideCurrentPath();
+                    var shortestPath = _game.getShortestPathsForUnit(selectedUnit)[x][y];
+                    for (var index in shortestPath.path) {
+                        var point = shortestPath.path[index];
+                        tiles[point.x][point.y].jqElement.addClass('current-path');
+                    }
+                    jqTile.addClass('destination');
+                }
             } else {
                 _ui.deselectUnits();
             }

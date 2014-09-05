@@ -47,11 +47,19 @@
     position: absolute;
     height: 30px;
     width: 30px;
-    background-color: #44CCff;
+    background-color: #44CCFF;
 }
 .tile.can-be-moved-to
 {
     background-color: #33AADD;
+}
+.tile.can-be-moved-to.current-path
+{
+    background-color: #3BBBEE;
+}
+.tile.can-be-moved-to.current-path.destination
+{
+    background-color: #1188AA;
 }
 .vision-blocker
 {
