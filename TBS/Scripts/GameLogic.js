@@ -76,7 +76,7 @@ var initGame = function () {
             description: "Ranger. Ranged. Low hit points. High damage. Slow attack speed.",
             damage: 35,
             attackSpeed: 1,
-            attackRange: 3,
+            attackRange: 4,
             hitPoints: 60,
             energy: 3,
             vision: 7,
@@ -129,26 +129,130 @@ var _game = {
         return selectedUnit;
     },
     getDistanceBetweenUnits: function (unit1, unit2) {
-        return _game.getDistanceBetweenUnitAndPoint(unit1, unit2.positionX, unit2.positionY);
+        return _game.getDistanceBetweenPoints(unit1.positionX, unit1.positionY, unit2.positionX, unit2.positionY);
     },
     getDistanceBetweenUnitAndPoint: function (unit, x, y) {
-        return Math.abs(unit.positionX - x) + Math.abs(unit.positionY - y);
+        return _game.getDistanceBetweenPoints(unit.positionX, unit.positionY, x, y);
+    },
+    getDistanceBetweenPoints: function (x1, y1, x2, y2) {
+        return  Math.abs(x1 - x2) + Math.abs(y1 - y2);
+    },
+    getShortestPathBetweenUnitAndPoint: function (unit, x, y) {
+        var minY = unit.positionY - unit.currentEnergy > 0 ? unit.positionY - unit.currentEnergy : 0;
+        var maxY = unit.positionY + unit.currentEnergy < LEVEL_HEIGHT ? unit.positionY + unit.currentEnergy : LEVEL_HEIGHT - 1;
+        var minX = unit.positionX - unit.currentEnergy > 0 ? unit.positionX - unit.currentEnergy : 0;
+        var maxX = unit.positionX + unit.currentEnergy < LEVEL_WIDTH ? unit.positionX + unit.currentEnergy : LEVEL_WIDTH - 1;
+        var boundaries = {
+            minY: minY,
+            maxY: maxY,
+            minX: minX,
+            maxX: maxX
+        };
+        return _game.getShortestPathToPoint(unit, boundaries, [], x, y);
+    },
+    getShortestPathToPoint: function (unit, boundaries, currentPath, x, y) {
+        var lastPoint;
+        if(currentPath.length == 0){
+            lastPoint = { x: unit.positionX, y: unit.positionY }; 
+        } else {
+            var lastPoint = currentPath[currentPath.length - 1];
+            if(lastPoint.x == x && lastPoint.y == y){
+                return { canReach: true, path: currentPath };
+            }
+        }
+
+        if (_game.getDistanceBetweenPoints(lastPoint.x, lastPoint.y, x, y) + currentPath.length > unit.currentEnergy) {
+            return { canReach: false, path: null };
+        }
+        var testDeltaCoordinates = [
+            { x: 1, y: 0 },
+            { x: -1, y: 0 },
+            { x: 0, y: 1 },
+            { x: 0, y: -1 }
+        ];
+        var bestPath = { canReach: false, path: null };
+        for (var index in testDeltaCoordinates) {
+            var deltaCoordinates = testDeltaCoordinates[index];
+            var newPoint = {
+                x: lastPoint.x + deltaCoordinates.x,
+                y: lastPoint.y + deltaCoordinates.y
+            };
+            var isInsideBoundaries = (
+                newPoint.y >= boundaries.minY &&
+                newPoint.y <= boundaries.maxY &&
+                newPoint.x >= boundaries.minX &&
+                newPoint.x <= boundaries.maxX
+            );
+            if (isInsideBoundaries) {
+                var isVisited = false;
+                for(var pointIndex in currentPath){
+                    var iteratedPoint = currentPath[pointIndex];
+                    if(
+                        iteratedPoint.x == newPoint.x &&
+                        iteratedPoint.y == newPoint.y
+                    ){
+                        isVisited = true;
+                    }
+                }
+                if(!isVisited){
+                    if (_game.mayUnitOccupyPosition(unit, newPoint.x, newPoint.y)) {
+                        var newPath = clone(currentPath);
+                        newPath.push(newPoint);
+                        var newShortestPath = _game.getShortestPathToPoint(unit, boundaries, newPath, x, y);
+                        if (newShortestPath.canReach) {
+                            if (!bestPath.canReach) {
+                                bestPath = newShortestPath;
+                            } else {
+                                if (newShortestPath.path.length < bestPath.path.length) {
+                                    bestPath = newShortestPath;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return bestPath;
+    },
+    mayUnitOccupyPosition: function (unit, x, y) {
+        var mayOccupy = true;
+        if (unit.positionX == x && unit.positionY == y) {
+            mayOccupy = false;
+        } else {
+            for (var unitIndex in currentGame.units) {
+                var iteratedUnit = currentGame.units[unitIndex];
+                if (
+                    iteratedUnit != unit &&
+                    _ui.isUnitOnTile(iteratedUnit, tiles[x][y])
+                ) {
+                    mayOccupy = false;
+                }
+            }
+        }
+        return mayOccupy;
+    },
+    isPositionOccupied: function (x, y) {
+        var isOccupied = false;
+        for (var unitIndex in currentGame.units) {
+            var unit = currentGame.units[unitIndex];
+            if (
+                unit.positionX == x &&
+                unit.positionY == y
+            ) {
+                isOccupied = true;
+            }
+        }
+        return isOccupied;
     },
     moveUnit: function (unit, x, y) {
-        var distance = _game.getDistanceBetweenUnitAndPoint(unit, x, y);
-        unit.currentEnergy -= distance;
+        var shortestPath = _game.getShortestPathBetweenUnitAndPoint(unit, x, y);
+        unit.currentEnergy -= shortestPath.path.length;
 
         // Move each step individually and update vision at each position.
-        for (var i = 0; i < distance; i++) {
-            if (unit.positionX > x) {
-                unit.positionX--;
-            } else if (unit.positionX < x) {
-                unit.positionX++;
-            } else if (unit.positionY > y) {
-                unit.positionY--;
-            } else if (unit.positionY < y) {
-                unit.positionY++;
-            }
+        for (var index in shortestPath.path) {
+            var point = shortestPath.path[index];
+            unit.positionX = point.x;
+            unit.positionY = point.y;
             _game.updateVision();
         }
 
@@ -471,16 +575,13 @@ var _ui = {
             for (var y = minY; y <= maxY; y++) {
                 for (var x = minX; x <= maxX; x++) {
                     // Has enough energy
-                    if (Math.abs(unit.positionX - x) + Math.abs(unit.positionY - y) <= unit.currentEnergy) {
-                        var isOcccupied = false;
-                        for (var unitIndex in currentGame.units) {
-                            var playerUnit = currentGame.units[unitIndex];
-                            if (_ui.isUnitOnTile(playerUnit, tiles[x][y])) {
-                                isOcccupied = true;
+                    if (_game.getDistanceBetweenUnitAndPoint(unit, x, y) <= unit.currentEnergy) {
+                        var mayOccupy = _game.mayUnitOccupyPosition(unit, x, y);
+                        if (mayOccupy) {
+                            var shortestPath = _game.getShortestPathBetweenUnitAndPoint(unit, x, y);
+                            if (shortestPath.canReach) {
+                                tiles[x][y].jqElement.addClass('can-be-moved-to');
                             }
-                        }
-                        if (!isOcccupied) {
-                            tiles[x][y].jqElement.addClass('can-be-moved-to');
                         }
                     }
                 }
@@ -500,3 +601,22 @@ var _ui = {
         _progressBar.setValue(unit.hitPointBar, unit.currentHitPoints);
     }
 };
+
+// UTILS:
+var clone = function (object){
+    var returnObject;
+    if (Array.isArray(object)) {
+        returnObject = [];
+    } else {
+        returnObject = {};
+    }
+    for (var property in object) {
+        var value = object[property];
+        if (typeof (value) == "object") {
+            returnObject[property] = clone(value);
+        } else {
+            returnObject[property] = value;
+        }
+    }
+    return returnObject;
+}
