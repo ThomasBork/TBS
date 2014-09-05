@@ -49,7 +49,7 @@ var initGame = function () {
             attackRange: 1,
             hitPoints: 100,
             energy: 4,
-            vision: 6,
+            vision: 7,
             attacks: 1,
             energyPerAttack: 4
         }
@@ -136,8 +136,9 @@ var _game = {
     },
     getDistanceBetweenPoints: function (x1, y1, x2, y2) {
         return  Math.abs(x1 - x2) + Math.abs(y1 - y2);
+        //return Math.abs(x1 - x2) > Math.abs(y1 - y2) ? Math.abs(x1 - x2) : Math.abs(y1 - y2);
     },
-    getShortestPathBetweenUnitAndPoint: function (unit, x, y) {
+    getShortestPathsForUnit: function (unit) {
         var minY = unit.positionY - unit.currentEnergy > 0 ? unit.positionY - unit.currentEnergy : 0;
         var maxY = unit.positionY + unit.currentEnergy < LEVEL_HEIGHT ? unit.positionY + unit.currentEnergy : LEVEL_HEIGHT - 1;
         var minX = unit.positionX - unit.currentEnergy > 0 ? unit.positionX - unit.currentEnergy : 0;
@@ -148,27 +149,47 @@ var _game = {
             minX: minX,
             maxX: maxX
         };
-        return _game.getShortestPathToPoint(unit, boundaries, [], x, y);
+
+        var paths = [];
+        for (var x = minX; x <= maxX; x++) {
+            paths[x] = [];
+            for (var y = minY; y <= maxY; y++) {
+                paths[x][y] = { canReach: false, path: null };
+            }
+        }
+
+        _game.getShortestPaths(unit, boundaries, [], paths);
+        return paths;
     },
-    getShortestPathToPoint: function (unit, boundaries, currentPath, x, y) {
+    getShortestPaths: function (unit, boundaries, currentPath, shortestPaths) {
         var lastPoint;
         if(currentPath.length == 0){
             lastPoint = { x: unit.positionX, y: unit.positionY }; 
         } else {
-            var lastPoint = currentPath[currentPath.length - 1];
-            if(lastPoint.x == x && lastPoint.y == y){
-                return { canReach: true, path: currentPath };
+            if (currentPath.length > unit.currentEnergy) {
+                return;
+            }
+            lastPoint = currentPath[currentPath.length - 1];
+            var shortestPath = shortestPaths[lastPoint.x][lastPoint.y];
+            var newShortestPath = { canReach: true, path: currentPath };
+            if (!shortestPath.canReach) {
+                shortestPaths[lastPoint.x][lastPoint.y] = newShortestPath;
+            } else {
+                if (newShortestPath.path.length < shortestPath.path.length) {
+                    shortestPaths[lastPoint.x][lastPoint.y] = newShortestPath;
+                }
             }
         }
 
-        if (_game.getDistanceBetweenPoints(lastPoint.x, lastPoint.y, x, y) + currentPath.length > unit.currentEnergy) {
-            return { canReach: false, path: null };
-        }
         var testDeltaCoordinates = [
             { x: 1, y: 0 },
             { x: -1, y: 0 },
             { x: 0, y: 1 },
-            { x: 0, y: -1 }
+            { x: 0, y: -1 }//,
+            //{ x: 1, y: 1 },
+            //{ x: -1, y: -1 },
+            //{ x: -1, y: 1 },
+            //{ x: 1, y: -1 }
         ];
         var bestPath = { canReach: false, path: null };
         for (var index in testDeltaCoordinates) {
@@ -198,21 +219,17 @@ var _game = {
                     if (_game.mayUnitOccupyPosition(unit, newPoint.x, newPoint.y)) {
                         var newPath = clone(currentPath);
                         newPath.push(newPoint);
-                        var newShortestPath = _game.getShortestPathToPoint(unit, boundaries, newPath, x, y);
-                        if (newShortestPath.canReach) {
-                            if (!bestPath.canReach) {
-                                bestPath = newShortestPath;
-                            } else {
-                                if (newShortestPath.path.length < bestPath.path.length) {
-                                    bestPath = newShortestPath;
-                                }
+                        if (shortestPaths[newPoint.x][newPoint.y].canReach) {
+                            if (newPath.length < shortestPaths[newPoint.x][newPoint.y].path.length) {
+                                _game.getShortestPaths(unit, boundaries, newPath, shortestPaths);
                             }
+                        } else {
+                            _game.getShortestPaths(unit, boundaries, newPath, shortestPaths);
                         }
                     }
                 }
             }
         }
-        return bestPath;
     },
     mayUnitOccupyPosition: function (unit, x, y) {
         var mayOccupy = true;
@@ -245,7 +262,7 @@ var _game = {
         return isOccupied;
     },
     moveUnit: function (unit, x, y) {
-        var shortestPath = _game.getShortestPathBetweenUnitAndPoint(unit, x, y);
+        var shortestPath = _game.getShortestPathsForUnit(unit)[x][y];
         unit.currentEnergy -= shortestPath.path.length;
 
         // Move each step individually and update vision at each position.
@@ -450,7 +467,7 @@ var _unit = {
         var maxX = unit.positionX + unit.unitType.vision < LEVEL_WIDTH ? unit.positionX + unit.unitType.vision : LEVEL_WIDTH - 1;
         for (var y = minY; y <= maxY; y++) {
             for (var x = minX; x <= maxX; x++) {
-                if (Math.abs(unit.positionX - x) + Math.abs(unit.positionY - y) <= unit.unitType.vision) {
+                if (_game.getDistanceBetweenUnitAndPoint(unit, x, y) <= unit.unitType.vision) {
                     unit.player.vision[x][y] = VISION.VISIBLE;
                 }
             }
@@ -568,21 +585,12 @@ var _ui = {
         $('.unit.can-be-attacked').removeClass('can-be-attacked');
         var unit = _ui.getSelectedUnit();
         if (unit !== undefined) {
-            var minY = unit.positionY - unit.currentEnergy > 0 ? unit.positionY - unit.currentEnergy : 0;
-            var maxY = unit.positionY + unit.currentEnergy < LEVEL_HEIGHT ? unit.positionY + unit.currentEnergy : LEVEL_HEIGHT - 1;
-            var minX = unit.positionX - unit.currentEnergy > 0 ? unit.positionX - unit.currentEnergy : 0;
-            var maxX = unit.positionX + unit.currentEnergy < LEVEL_WIDTH ? unit.positionX + unit.currentEnergy : LEVEL_WIDTH - 1;
-            for (var y = minY; y <= maxY; y++) {
-                for (var x = minX; x <= maxX; x++) {
-                    // Has enough energy
-                    if (_game.getDistanceBetweenUnitAndPoint(unit, x, y) <= unit.currentEnergy) {
-                        var mayOccupy = _game.mayUnitOccupyPosition(unit, x, y);
-                        if (mayOccupy) {
-                            var shortestPath = _game.getShortestPathBetweenUnitAndPoint(unit, x, y);
-                            if (shortestPath.canReach) {
-                                tiles[x][y].jqElement.addClass('can-be-moved-to');
-                            }
-                        }
+            var shortestPaths = _game.getShortestPathsForUnit(unit);
+            for(var x in shortestPaths){
+                for(var y in shortestPaths[x]){
+                    var shortestPath = shortestPaths[x][y];
+                    if (shortestPath.canReach) {
+                        tiles[x][y].jqElement.addClass('can-be-moved-to');
                     }
                 }
             }
