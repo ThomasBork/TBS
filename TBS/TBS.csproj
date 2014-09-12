@@ -122,6 +122,15 @@
     <Compile Include="App_Start\FilterConfig.cs" />
     <Compile Include="App_Start\RouteConfig.cs" />
     <Compile Include="App_Start\WebApiConfig.cs" />
+    <Content Include="Content\Images\Commander-red.png" />
+    <Content Include="Content\Images\Commander-yellow.png" />
+    <Content Include="Content\Images\Control-tower-neutral.png" />
+    <Content Include="Content\Images\Control-tower-red.png" />
+    <Content Include="Content\Images\Control-tower-yellow.png" />
+    <Content Include="Content\Images\Footman-red.png" />
+    <Content Include="Content\Images\Footman-yellow.png" />
+    <Content Include="Content\Images\Ranger-red.png" />
+    <Content Include="Content\Images\Ranger-yellow.png" />
     <Content Include="Global.asax" />
     <Content Include="Scripts\Classes\ProgressBar.js" />
     <Content Include="Scripts\Enums\ProgressBar.js" />

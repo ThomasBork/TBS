@@ -9,7 +9,8 @@ var TILE_PIXEL_HEIGHT = 30;
 
 var currentGame;
 var gameOptions = {
-    goldIncome: 10
+    goldIncome: 10,
+    neutralColor: 'neutral'
 };
 
 var nextUnitID = 0;
@@ -39,17 +40,17 @@ var initGame = function () {
     _game.setUpLevel();
     var player1Name = $('#player1-name').val() != "" ? $('#player1-name').val() : "Player1";
     var player2Name = $('#player2-name').val() != "" ? $('#player2-name').val() : "Player2";
-    var player1 = _player.new(player1Name, 'green');
-    var player2 = _player.new(player2Name, 'white');
+    var player1 = _player.new(player1Name, 'red');
+    var player2 = _player.new(player2Name, 'yellow');
     currentGame = _game.new(player1, player2);
-
+    
     var commander = _unitType.new(
         {
             name: "Commander",
+            cssClassName: "commander",
             description: "Commander. Average hit points. Average damage. Average attack speed.",
             damage: 20,
             attackSpeed: 2,
-            attackRange: 1,
             hitPoints: 100,
             energy: 4,
             vision: 7,
@@ -61,10 +62,10 @@ var initGame = function () {
     var footman = _unitType.new(
         {
             name: "Footman",
+            cssClassName: "footman",
             description: "Footman. High hit points. Average damage. Slow attack speed.",
             damage: 20,
             attackSpeed: 1.2,
-            attackRange: 1,
             hitPoints: 150,
             energy: 3,
             vision: 5,
@@ -76,15 +77,37 @@ var initGame = function () {
     var ranger = _unitType.new(
         {
             name: "Ranger",
+            cssClassName: "ranger",
             description: "Ranger. Ranged. Low hit points. High damage. Slow attack speed.",
             damage: 35,
-            attackSpeed: 1,
             attackRange: 4,
             hitPoints: 60,
             energy: 3,
             vision: 7,
             attacks: 1,
             energyPerAttack: 3
+        }
+    );
+    
+    var controlTower = _unitType.new(
+        {
+            name: "Control tower",
+            cssClassName: "control-tower",
+            description: "Increases income by 3 gold every turn.",
+            vision: 10,
+            canAttack: false,
+            canInteract: false,
+            canBeAttacked: false,
+            canBeInteractedWithWhenNeutral: true,
+            canBeInteractedWithByAllies: false,
+            canBeInteractedWithByEnemies: true,
+            interactionHandler: function (interactingUnit, thisUnit) {
+                _unit.addUnitToPlayer(thisUnit, interactingUnit.player);
+                _game.updateVision();
+            },
+            beginningOfTurnHandler: function (thisUnit) {
+                thisUnit.player.gold += 3;
+            }
         }
     );
 
@@ -98,6 +121,11 @@ var initGame = function () {
     _unit.new(player2, footman, 25, 20);
     _unit.new(player2, ranger, 24, 24);
 
+    _unit.new(null, controlTower, 6, 2);
+    _unit.new(null, controlTower, 5, 19);
+    _unit.new(null, controlTower, 17, 19);
+    _unit.new(null, controlTower, 25, 8);
+
     $('#in-game-control-panel').show();
     _game.start(currentGame);
 };
@@ -107,7 +135,9 @@ var _game = {
         var newGame = {
             players: [player1, player2],
             host: player1,
-            units: []
+            units: [],
+            currentTurn: undefined,
+            currentPlayer: undefined
         };
         return newGame;
     },
@@ -294,6 +324,7 @@ var _game = {
         _player.updateCurrentPlayer();
         _player.readyUnitsForPlayer(currentGame.currentPlayer);
         _player.resolveIncomeForPlayer(currentGame.currentPlayer);
+        _player.updateUnitsBeginningOfTurn(currentGame.currentPlayer);
         _ui.deselectUnits();
         _ui.updateCurrentPlayerText();
         _ui.updateGoldText();
@@ -323,8 +354,14 @@ var _game = {
             var unit = currentGame.units[unitIndex];
             if (currentGame.currentPlayer.vision[unit.positionX][unit.positionY] == VISION.VISIBLE) {
                 unit.jqElement.show();
+                if (unit.hitPointBar != undefined) {
+                    unit.hitPointBar.jqElement.show();
+                }
             } else {
                 unit.jqElement.hide();
+                if (unit.hitPointBar != undefined) {
+                    unit.hitPointBar.jqElement.hide();
+                }
             }
         }
 
@@ -386,23 +423,42 @@ var _player = {
         if (currentGame.currentTurn >= currentGame.players.length) {
             player.gold += gameOptions.goldIncome;
         }
+    },
+    updateUnitsBeginningOfTurn: function (player) {
+        for (var unitIndex in player.units) {
+            var unit = player.units[unitIndex];
+            if (unit.unitType.beginningOfTurnHandler != undefined) {
+                unit.unitType.beginningOfTurnHandler(unit);
+            }
+        }
     }
 };
 
 var _unitType = {
     new: function (options) {
-        return {
-            name: options.name,
-            description: options.description,
-            damage: options.damage,
-            attackSpeed: options.attackSpeed,
-            attackRange: options.attackRange,
-            hitPoints: options.hitPoints,
-            energy: options.energy,
-            vision: options.vision,
-            attacks: options.attacks,
-            energyPerAttack: options.energyPerAttack
+        var defaults = {
+            name: '',
+            cssClassName: '',
+            description: '',
+            damage: 0,
+            attackSpeed: 1,
+            attackRange: 1,
+            hitPoints: 100,
+            energy: 0,
+            vision: 0,
+            attacks: 0,
+            energyPerAttack: 4,
+            canAttack: true,
+            canInteract: true,
+            canBeAttacked: true,
+            canBeInteractedWithWhenNeutral: false,
+            canBeInteractedWithByAllies: false,
+            canBeInteractedWithByEnemies: false,
+            interactionHandler: undefined,
+            beginningOfTurnHandler: undefined
         };
+        var returnUnitType = $.extend({}, defaults, options);
+        return returnUnitType;
     }
 };
 
@@ -419,14 +475,16 @@ var _unit = {
     new: function (player, unitType, positionX, positionY) {
         var jqUnit = $('<div class="unit">');
         jqUnit.attr('unit-id', nextUnitID);
-        jqUnit.addClass(player.color);
         jqUnit.attr('title', unitType.description);
+        jqUnit.addClass(unitType.cssClassName);
 
         jqUnit.click(function () {
             var selectedUnit = _ui.getUnitFromJqElement($(this));
-            if (selectedUnit.player == currentGame.currentPlayer) {
-                _ui.selectUnit(selectedUnit);
-                _ui.showMovementForSelectedUnit();
+            if (selectedUnit.player !== null) {
+                if (selectedUnit.player == currentGame.currentPlayer) {
+                    _ui.selectUnit(selectedUnit);
+                    _ui.showMovementForSelectedUnit();
+                }
             }
         });
 
@@ -435,13 +493,19 @@ var _unit = {
             return false;
         });
 
-        var hitPointBar = _progressBar.newHPBar(
-            {
-                height: '5px',
-                maxValue: unitType.hitPoints,
-                value: unitType.hitPoints
-            }
-        );
+        if (unitType.canBeAttacked) {
+            var hitPointBar = _progressBar.newHPBar(
+                {
+                    height: '5px',
+                    width: TILE_PIXEL_WIDTH,
+                    maxValue: unitType.hitPoints,
+                    value: unitType.hitPoints
+                }
+            );
+            var jqBar = hitPointBar.jqElement;
+            jqBar.css('position', 'absolute');
+            jqGameArea.append(jqBar);
+        }
 
         var newUnit = {
             jqElement: jqUnit,
@@ -457,20 +521,40 @@ var _unit = {
         // Add object attributes to the newUnit object.
         $.extend(newUnit, _object.new(positionX, positionY));
 
-        player.units.push(newUnit);
         currentGame.units.push(newUnit);
 
         _ui.updatePositionForUnit(newUnit);
         jqGameArea.append(jqUnit);
 
-        var jqBar = hitPointBar.jqElement;
-        newUnit.jqElement.append(jqBar);
+        if (player != null) {
+            _unit.addUnitToPlayer(newUnit, player);
+        } else {
+            newUnit.jqElement.addClass(gameOptions.neutralColor);
+        }
 
         nextUnitID++;
         return newUnit;
     },
+    removeUnitFromPlayer: function (unit) {
+        unit.jqElement.removeClass(unit.player.color);
+        unit.player.units = getArrayWithoutElement(unit, unit.player.units);
+        unit.player = null;
+    },
+    addUnitToPlayer: function (unit, player) {
+        if (unit.player != null) {
+            _unit.removeUnitFromPlayer(unit);
+        } else {
+            unit.jqElement.removeClass(gameOptions.neutralColor);
+        }
+        unit.jqElement.addClass(player.color);
+        unit.player = player;
+        player.units.push(unit);
+    },
     canAttack: function (unit) {
-        return (unit.currentAttacks > 0 || unit.currentEnergy >= unit.unitType.energyPerAttack);
+        return unit.unitType.canAttack && (unit.currentAttacks > 0 || unit.currentEnergy >= unit.unitType.energyPerAttack);
+    },
+    canInteract: function (unit) {
+        return unit.unitType.canInteract;
     },
     replenishEnergyForUnit: function (unit) {
         unit.currentEnergy = unit.unitType.energy;
@@ -505,13 +589,23 @@ var _ui = {
         $('#lbl-gold').html('Gold: ' + currentGame.currentPlayer.gold);
     },
     updatePositionForUnit: function (unit) {
-        unit.jqElement.css('left', _ui.ingameXToPixels(unit.positionX) + 'px');
-        unit.jqElement.css('top', _ui.ingameYToPixels(unit.positionY) + 'px');
+        var left = _ui.ingameXToPixels(unit.positionX);
+        var top = _ui.ingameYToPixels(unit.positionY);
+        unit.jqElement.css('left', left + 'px');
+        unit.jqElement.css('top', top + 'px');
+        if (unit.hitPointBar != undefined) {
+            unit.hitPointBar.jqElement.css('left', left + 'px');
+            unit.hitPointBar.jqElement.css('top', (top - 5) + 'px');
+        }
+    },
+    resetHighlighting: function () {
+        $('.tile.can-be-moved-to').removeClass('can-be-moved-to');
+        $('.unit.can-be-attacked').removeClass('can-be-attacked');
+        $('.unit.can-be-interacted-with').removeClass('can-be-interacted-with');
     },
     deselectUnits: function () {
         $('.unit.selected').removeClass('selected');
-        $('.tile.can-be-moved-to').removeClass('can-be-moved-to');
-        $('.unit.can-be-attacked').removeClass('can-be-attacked');
+        _ui.resetHighlighting();
         _ui.hideCurrentPath();
     },
     hideCurrentPath: function () {
@@ -557,9 +651,11 @@ var _ui = {
     handleRightClickOnUnit: function (event, jqUnit) {
         var selectedUnit = _ui.getSelectedUnit();
         if (selectedUnit !== undefined) {
+            var unit = _ui.getUnitFromJqElement(jqUnit);
             if (jqUnit.hasClass('can-be-attacked')) {
-                var attackedUnit = _ui.getUnitFromJqElement(jqUnit);
-                _game.orderUnitToAttack(selectedUnit, attackedUnit);
+                _game.orderUnitToAttack(selectedUnit, unit);
+            } else if (jqUnit.hasClass('can-be-interacted-with')) {
+                unit.unitType.interactionHandler(selectedUnit, unit);
             } else {
                 _ui.deselectUnits();
             }
@@ -622,8 +718,8 @@ var _ui = {
         }
     },
     showMovementForSelectedUnit: function () {
-        $('.tile.can-be-moved-to').removeClass('can-be-moved-to');
-        $('.unit.can-be-attacked').removeClass('can-be-attacked');
+        _ui.resetHighlighting();
+
         var unit = _ui.getSelectedUnit();
         if (unit !== undefined) {
             var shortestPaths = _game.getShortestPathsForUnit(unit);
@@ -635,13 +731,41 @@ var _ui = {
                     }
                 }
             }
-            for (var unitIndex in _player.getOtherPlayer().units) {
-                var playerUnit = _player.getOtherPlayer().units[unitIndex];
-                if (
-                    _game.getDistanceBetweenUnits(unit, playerUnit) <= unit.unitType.attackRange &&
-                    _unit.canAttack(unit)
-                ) {
-                    playerUnit.jqElement.addClass('can-be-attacked');
+            if (_unit.canAttack(unit)) {
+                for (var unitIndex in _player.getOtherPlayer().units) {
+                    var playerUnit = _player.getOtherPlayer().units[unitIndex];
+                    if (
+                        _game.getDistanceBetweenUnits(unit, playerUnit) <= unit.unitType.attackRange &&
+                        playerUnit.unitType.canBeAttacked
+                    ) {
+                        playerUnit.jqElement.addClass('can-be-attacked');
+                    }
+                }
+            }
+            if (_unit.canInteract(unit)) {
+                for (var unitIndex in currentGame.units) {
+                    var gameUnit = currentGame.units[unitIndex];
+                    if (
+                        _game.getDistanceBetweenUnits(unit, gameUnit) <= 1
+                    ) {
+                        if (gameUnit.player == null) {
+                            if (gameUnit.unitType.canBeInteractedWithWhenNeutral) {
+                                gameUnit.jqElement.addClass('can-be-interacted-with');
+                            }
+                        } else {
+                            if (
+                                gameUnit.player == unit.player &&
+                                gameUnit.unitType.canBeInteractedWithByAllies
+                            ) {
+                                gameUnit.jqElement.addClass('can-be-interacted-with');
+                            } else if (
+                                gameUnit.player != unit.player &&
+                                gameUnit.unitType.canBeInteractedWithByEnemies
+                            ) {
+                                gameUnit.jqElement.addClass('can-be-interacted-with');
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -669,3 +793,13 @@ var clone = function (object){
     }
     return returnObject;
 }
+
+var getArrayWithoutElement = function (element, array) {
+    var returnArray = [];
+    for (var index in array) {
+        if (array[index] != element) {
+            returnArray.push(array[index]);
+        }
+    }
+    return returnArray;
+};

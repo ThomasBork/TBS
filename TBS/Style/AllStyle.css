@@ -25,15 +25,54 @@
     position: absolute;
     height: 30px;
     width: 30px;
+    z-index: 10;
 }
-.green
+.progress-bar-container
 {
-    background-color: green;
+    z-index: 20;
 }
-.white
+
+
+.red.commander
 {
-    background-color: white;
+    background-image:url('../Content/Images/Commander-red.png');
 }
+.yellow.commander
+{
+    background-image:url('../Content/Images/Commander-yellow.png');
+}
+
+.red.footman
+{
+    background-image:url('../Content/Images/Footman-red.png');
+}
+.yellow.footman
+{
+    background-image:url('../Content/Images/Footman-yellow.png');
+}
+
+.red.ranger
+{
+    background-image:url('../Content/Images/Ranger-red.png');
+}
+.yellow.ranger
+{
+    background-image:url('../Content/Images/Ranger-yellow.png');
+}
+
+.neutral.control-tower
+{
+    background-image:url('../Content/Images/Control-tower-neutral.png');
+}
+.red.control-tower
+{
+    background-image:url('../Content/Images/Control-tower-red.png');
+}
+.yellow.control-tower
+{
+    background-image:url('../Content/Images/Control-tower-yellow.png');
+}
+
 .unit.selected
 {
     opacity: 0.5;
@@ -41,6 +80,10 @@
 .unit.can-be-attacked
 {
     background-color: #ff6a00;
+}
+.unit.can-be-interacted-with
+{
+    opacity: 0.3;
 }
 .tile
 {
